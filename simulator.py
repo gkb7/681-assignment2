@@ -65,7 +65,9 @@ class Simulator:
     def __init__(self,
                  users=50,
                  cores=4,
-                 max_threads=20,
+                #  max_threads=20,
+                 service_dist="exp",
+                #  service_params=(0.02,),
                  quantum=0.01,
                  context=0.001,
                  sim_time=2000,
@@ -73,12 +75,16 @@ class Simulator:
 
         self.users = users
         self.cores = cores
+
+        self.service_dist = service_dist
+        # self.service_params =service_params
+
         self.quantum = quantum
         self.context = context
         self.sim_time = sim_time
         self.warmup = warmup
 
-        self.system = QueueSystem(cores, max_threads)
+        self.system = QueueSystem(cores, cores)
 
         self.time = 0
         self.event_list = []
@@ -99,10 +105,34 @@ class Simulator:
         return -mean * np.log(random.random())
 
     def think(self):
-        return random.uniform(1, 5)
+        return max(0,random.normalvariate(6,3))
+
+    # def service(self):
+    #     return np.random.exponential(0.02)
 
     def service(self):
-        return np.random.exponential(0.02)
+
+        if self.service_dist == "exp":
+
+            # mean = self.service_params[0]
+
+            return np.random.exponential(0.045)+0.045
+
+        elif self.service_dist == "const":
+
+            # value = self.service_params[0]
+
+            return 0.045
+
+        elif self.service_dist == "uniform":
+
+            # low = self.service_params[0]
+            # high = self.service_params[1]
+
+            return random.uniform(.03, .06)
+
+        else:
+            raise ValueError("Unknown service distribution")
 
     def timeout(self):
         return random.uniform(0.05, 0.2)
