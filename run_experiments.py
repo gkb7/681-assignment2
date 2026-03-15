@@ -21,7 +21,7 @@ os.makedirs("results", exist_ok=True)
 users = [i for i in range(250,601,50)]
 
 
-runs = 20
+runs = 10
 
 rows = []
 

@@ -1,2 +1,6 @@
 *.png
 *.csv
+*.txt
+__pycache__/
+results/
+.gitignore
