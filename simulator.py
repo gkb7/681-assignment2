@@ -1,6 +1,7 @@
 import heapq
 import random
 import numpy as np
+from collections import deque
 
 ARRIVAL = 1
 DEPARTURE = 2
@@ -41,7 +42,8 @@ class QueueSystem:
     def __init__(self, cores, max_threads):
 
         self.servers = [Server(i) for i in range(cores)]
-        self.queue = []
+        self.thread_queue = deque()
+        self.core_queue = deque()
         self.max_threads = max_threads
         self.active_threads = 0
 
@@ -51,21 +53,36 @@ class QueueSystem:
                 return s
         return None
 
-    def enqueue(self, r):
-        self.queue.append(r)
+    # def enqueue(self, r):
+    #     self.queue.append(r)
 
-    def dequeue(self):
-        if self.queue:
-            return self.queue.pop(0)
+    # def dequeue(self):
+    #     if self.queue:
+    #         return self.queue.pop(0)
+    #     return None
+
+    def enqueue_thread(self, r):
+        self.thread_queue.append(r)
+
+    def dequeue_thread(self):
+        if self.thread_queue:
+            return self.thread_queue.popleft()
         return None
 
+    def enqueue_core(self, r):
+        self.core_queue.append(r)
+
+    def dequeue_core(self):
+        if self.core_queue:
+            return self.core_queue.popleft()
+        return None
 
 class Simulator:
 
     def __init__(self,
                  users=50,
                  cores=4,
-                #  max_threads=20,
+                 max_threads=50,
                  service_dist="exp",
                 #  service_params=(0.02,),
                  quantum=0.01,
@@ -75,6 +92,7 @@ class Simulator:
 
         self.users = users
         self.cores = cores
+        self.trace = False
 
         self.service_dist = service_dist
         # self.service_params =service_params
@@ -84,7 +102,7 @@ class Simulator:
         self.sim_time = sim_time
         self.warmup = warmup
 
-        self.system = QueueSystem(cores, cores)
+        self.system = QueueSystem(cores, max_threads)
 
         self.time = 0
         self.event_list = []
@@ -139,6 +157,7 @@ class Simulator:
 
     def schedule(self, ev):
         heapq.heappush(self.event_list, ev)
+        print(f"[{self.time:.4f}] schedule event={ev.etype} req={getattr(ev.request,'uid',None)} at {ev.time:.4f}")
 
     def initialize(self):
 
@@ -164,13 +183,16 @@ class Simulator:
 
         self.last_event = self.time
 
-        self.area_q += len(self.system.queue) * dt
+        self.area_q += len(self.system.thread_queue) * dt
 
         busy = sum([1 for s in self.system.servers if s.busy])
 
-        self.area_busy += busy * dt
+        if self.last_event >= self.warmup:
+            self.area_busy += busy * dt
 
     def think_done(self, ev):
+        if self.trace:
+            print(f"[{self.time:.4f}] THINK_DONE user={ev.request.uid}")
 
         uid = ev.request.uid
 
@@ -180,15 +202,22 @@ class Simulator:
 
         r = Request(uid, self.time, service, timeout)
 
+        print(f"[{self.time:.4f}] create request uid={uid} service={service:.4f} timeout={timeout:.4f}")
+
         self.schedule(Event(self.time, ARRIVAL, r))
 
         self.schedule(Event(self.time + timeout, TIMEOUT, r))
 
     def arrival(self, ev):
-
+        
         r = ev.request
+        if self.trace:
+            print(f"[{self.time:.4f}] ARRIVAL req={r.uid}")
+
 
         if self.system.active_threads < self.system.max_threads:
+            self.system.active_threads += 1
+
 
             s = self.system.idle_server()
 
@@ -198,13 +227,15 @@ class Simulator:
 
             else:
 
-                self.system.enqueue(r)
+                self.system.enqueue_core(r)
 
-            self.system.active_threads += 1
 
         else:
 
-            self.system.enqueue(r)
+            self.system.enqueue_thread(r)
+            if self.trace:
+                print(f"[{self.time:.4f}] THREAD_WAIT req={r.uid}")
+
 
     def start_service(self, s, r):
 
@@ -217,8 +248,15 @@ class Simulator:
 
         r.remaining -= run
 
-        self.schedule(Event(self.time + run + self.context,
-                            DEPARTURE, r))
+        if r.remaining >0:
+            delay=run+self.context
+        else:
+            delay=run
+
+        if self.trace:
+            print(f"[{self.time:.4f}] START core={s.sid} req={r.uid} remaining={r.remaining:.4f}")
+
+        self.schedule(Event(self.time + delay, DEPARTURE, r))
 
     def departure(self, ev):
 
@@ -227,13 +265,18 @@ class Simulator:
 
         if r.remaining > 0:
 
-            self.system.enqueue(r)
+            self.system.enqueue_core(r)
 
-            next_r = self.system.dequeue()
+            next_r = self.system.dequeue_core()
 
             if next_r:
 
                 self.start_service(s, next_r)
+            else:
+                s.busy = False
+
+            if self.trace:
+                print(f"[{self.time:.4f}] PREEMPT core={s.sid} req={r.uid} remaining={r.remaining:.4f}")
 
         else:
 
@@ -261,13 +304,24 @@ class Simulator:
             self.schedule(Event(self.time + think,
                                 THINK_DONE, r))
 
-            next_r = self.system.dequeue()
+            next_r = self.system.dequeue_thread()
 
             if next_r:
 
                 self.system.active_threads += 1
+                idle = self.system.idle_server()
+                if idle:
+                    self.start_service(idle, next_r)
+                else:
+                    self.system.enqueue_core(next_r)
 
-                self.start_service(s, next_r)
+            next_core_req=self.system.dequeue_core()
+
+            if next_core_req:
+                self.start_service(s,next_core_req)
+
+        if self.trace:
+            print(f"[{self.time:.4f}] COMPLETE req={r.uid} RT={self.time - r.arrival:.4f} timeout={r.timed_out}")
 
     def timeout_event(self, ev):
 
@@ -279,6 +333,9 @@ class Simulator:
 
             if self.time > self.warmup:
                 self.metrics["timeouts"] += 1
+
+        if self.trace:
+            print(f"[{self.time:.4f}] TIMEOUT req={r.uid}")
 
     def run(self):
 
@@ -318,7 +375,8 @@ class Simulator:
         badput = self.metrics["bad"] / dur
         drop = self.metrics["timeouts"] / (self.metrics["completed"] + self.metrics["timeouts"] + 1e-9)
 
-        util = self.area_busy / (self.cores * self.sim_time)
+        dur = self.time-self.warmup
+        util = self.area_busy / (self.cores * dur)
 
         return {
             "response_time": rt,

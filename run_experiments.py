@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 from simulator import Simulator
+import random
 import sys
 dist = sys.argv[1]
 
@@ -18,10 +19,10 @@ dist = sys.argv[1]
 os.makedirs("results", exist_ok=True)
 
 # users = [i for i in range(10,251,20)]
-users = [i for i in range(250,601,50)]
+users = [i for i in range(1,351,50)]
 
 
-runs = 10
+runs = 2
 
 rows = []
 
@@ -36,6 +37,8 @@ for u in users:
 
     for i in range(runs):
 
+        np.random.seed(i)
+        random.seed(i)
         # sim = Simulator(users=u)
         sim = Simulator(
                 users=u,
@@ -43,6 +46,7 @@ for u in users:
                 service_dist=dist,
                 # service_params=params
         )
+        # sim.trace=True
 
         m = sim.run()
 
@@ -55,7 +59,7 @@ for u in users:
             util.append(m["utilization"])
 
     mean = np.mean(rts)
-    std = np.std(rts)
+    std = np.std(rts, ddof=1)
     ci = 1.96*std/np.sqrt(runs)
 
     rows.append({
