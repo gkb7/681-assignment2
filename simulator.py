@@ -87,7 +87,7 @@ class Simulator:
                  service_dist="exp",
                 #  service_params=(0.02,),
                  quantum=2,
-                 context=0,
+                 context=.001,
                  sim_time=2000,
                  warmup=200):
 
