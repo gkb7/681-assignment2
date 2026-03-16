@@ -15,7 +15,7 @@ users = 300
 # quantum values in milliseconds
 quantums = [i for i in range(10, 201, 10)]
 
-runs = 
+runs = 10
 
 rows = []
 run_rows = []
