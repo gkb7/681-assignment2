@@ -19,12 +19,13 @@ dist = sys.argv[1]
 os.makedirs("results", exist_ok=True)
 
 # users = [i for i in range(10,251,20)]
-users = [i for i in range(1,351,50)]
+users = [i for i in range(200,701,100)]
 
 
 runs = 2
 
 rows = []
+run_rows = []
 
 for u in users:
 
@@ -58,9 +59,25 @@ for u in users:
             drop.append(m["drop_rate"])
             util.append(m["utilization"])
 
+        
+
+            # store per-run data
+            run_rows.append({
+                "users": u,
+                "run": i,
+                "response_time": m["response_time"],
+                "throughput": m["throughput"],
+                "goodput": m["goodput"],
+                "badput": m["badput"],
+                "drop_rate": m["drop_rate"],
+                "utilization": m["utilization"]
+            })
+
     mean = np.mean(rts)
     std = np.std(rts, ddof=1)
     ci = 1.96*std/np.sqrt(runs)
+    tt= (u/m["throughput"])-m["response_time"]
+    tau = (m["utilization"]*4)/m["throughput"]
 
     rows.append({
         "users":u,
@@ -70,11 +87,23 @@ for u in users:
         "goodput":np.mean(good),
         "badput":np.mean(bad),
         "drop_rate":np.mean(drop),
-        "utilization":np.mean(util)
+        "utilization":np.mean(util),
+        "think_time_experimental":np.mean(tt),
+        "tau_experimental":np.mean(tau)
     })
 
-df=pd.DataFrame(rows)
+# df=pd.DataFrame(rows)
 
-df.to_csv("results/results.csv",index=False)
+# df.to_csv("results/results.csv",index=False)
 
-print(df)
+# summary statistics
+df_summary = pd.DataFrame(rows)
+df_summary.to_csv("results/results_summary.csv", index=False)
+
+# individual run results
+df_runs = pd.DataFrame(run_rows)
+df_runs.to_csv("results/results_runs.csv", index=False)
+
+print(df_summary)
+
+# print(df)

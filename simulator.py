@@ -27,6 +27,7 @@ class Request:
         self.timeout = timeout
         self.server = None
         self.timed_out = False
+        self.completed = False
 
 
 class Server:
@@ -85,8 +86,8 @@ class Simulator:
                  max_threads=50,
                  service_dist="exp",
                 #  service_params=(0.02,),
-                 quantum=0.01,
-                 context=0.001,
+                 quantum=2,
+                 context=0,
                  sim_time=2000,
                  warmup=200):
 
@@ -153,7 +154,7 @@ class Simulator:
             raise ValueError("Unknown service distribution")
 
     def timeout(self):
-        return random.uniform(0.05, 0.2)
+        return random.normalvariate(2,1)+.5
 
     def schedule(self, ev):
         heapq.heappush(self.event_list, ev)
@@ -282,6 +283,8 @@ class Simulator:
 
             s.busy = False
 
+            r.completed = True
+
             s.busy_time += self.time - s.last_start
 
             self.system.active_threads -= 1
@@ -326,6 +329,9 @@ class Simulator:
     def timeout_event(self, ev):
 
         r = ev.request
+
+        if r.completed:
+            return
 
         if not r.timed_out:
 

@@ -1,7 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-df = pd.read_csv("results/results.csv")
+df = pd.read_csv("results/results_summary.csv")
 
 plt.errorbar(df["users"],
              df["response_time"],
